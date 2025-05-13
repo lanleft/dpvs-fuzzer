@@ -1,9 +1,9 @@
 #ifndef DPVS_CONFIG_H
 #define DPVS_CONFIG_H
 
-// // DPVS global configuration from config.mk
-// #define DPVS_MAX_SOCKET 2
-// #define DPVS_MAX_LCORE 4
+// DPVS global configuration from config.mk
+#define DPVS_MAX_SOCKET 2
+#define DPVS_MAX_LCORE 4
 
 
 // Module configurations

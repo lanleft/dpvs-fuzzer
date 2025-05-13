@@ -1,10 +1,30 @@
-
 # DPVSFuzzer
-...
+
+<!-- introduction -->
 
 ## Table of Contents
 
+<!-- toc -->
+
+- [Overview](#overview)
+- [Building dependencies](#building-dependencies)
+  * [liborotobuf-mutator](#liborotobuf-mutator)
+- [Building a Fuzzer](#building-a-fuzzer)
+
+<!-- tocstop -->
+
 ## Overview 
+
+- Fuzzer main modules structure:
+
+```bash
+  fuzz/
+  third_party/
+    dpdk-24.11/
+    libprotobuf-mutator/
+    AFLplusplus/
+    dpvs/
+```
 
 ## Building dependencies
 

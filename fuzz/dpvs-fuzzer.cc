@@ -48,27 +48,28 @@ extern "C" {
 
 // Global variables
 static struct rte_mempool *mbuf_pool = NULL;
-static struct netif_port *test_port = NULL;
+static struct netif_port *dev_port = NULL;
 
 // Initialize DPDK environment and mbuf pool
 static int init_dpdk(void) {
     int ret;
     char pool_name[32];
-    char *argv[10];
+    char *argv[5];
 
+    printf("Initializing DPDK environment\n");
     argv[0] = (char *)malloc(10);
     memset(argv[0], 0, 10);
     strcpy(argv[0], "dpvs\0");
 
-    printf("Initializing DPDK environment\n");
     // Initialize EAL
-
+    printf("Initializing EAL\n");
     ret = rte_eal_init(1, argv);
     if (ret < 0) {
         return -1;
     }
     
     // Create mbuf pool
+    printf("Creating mbuf pool\n");
     snprintf(pool_name, sizeof(pool_name), "mbuf_pool_%d", rte_socket_id());
     mbuf_pool = rte_pktmbuf_pool_create(pool_name, 1024, 0, 0,
                                        RTE_MBUF_DEFAULT_BUF_SIZE,
@@ -78,16 +79,29 @@ static int init_dpdk(void) {
     }
     
     // Create a test network interface
-    test_port = netif_alloc(NETIF_PORT_ID_INVALID, 0, "test%d", 1, 1, NULL);
-    if (!test_port) {
+    printf("Creating test network interface\n");
+    dev_port = netif_alloc(NETIF_PORT_ID_INVALID, 0, "test%d", 1, 1, NULL);
+    if (!dev_port) {
         return -1;
     }
     
     // Set up basic port configuration
-    test_port->mbuf_pool = mbuf_pool;
-    test_port->flag |= NETIF_PORT_FLAG_ENABLED;
-    test_port->mtu = 1500;
-    
+    printf("Setting up basic port configuration\n");
+    dev_port->mbuf_pool = mbuf_pool;
+    dev_port->flag |= NETIF_PORT_FLAG_ENABLED;
+    dev_port->mtu = 1500;
+
+    // Set up config port
+    netif_cfgfile_init();
+
+    // Setup netif_pkt_type_tab_init
+    printf("Calling netif_pkt_type_tab_init\n");
+    if (netif_init() < 0) {
+        return -1;
+    }
+
+    // Setup 
+
     return 0;
 }
 
@@ -114,6 +128,7 @@ static struct rte_mbuf* create_mbuf_from_proto(const dpvs::MbufMutator& proto) {
     
     // Copy headers and payload
     data = rte_pktmbuf_mtod(mbuf, uint8_t*);
+    printf("proto.eth_header().size(): %ld\n", proto.eth_header().size());
     
     // Copy ethernet header
     if (proto.has_eth_header()) {
@@ -157,6 +172,7 @@ DEFINE_PROTO_FUZZER(const dpvs::MbufMutator& proto) {
         if (init_dpdk() < 0) {
             return;
         }
+
         initialized = true;
     }
     
@@ -169,10 +185,10 @@ DEFINE_PROTO_FUZZER(const dpvs::MbufMutator& proto) {
     
     printf("Calling netif_rcv_mbuf\n");
     // Call the target function
-    netif_rcv_mbuf(test_port, rte_lcore_id(), mbuf, false);
-    
-    printf("Freeing mbuf\n");
+    netif_rcv_mbuf(dev_port, rte_lcore_id(), mbuf, false);
+
     // Cleanup
+    printf("Freeing mbuf\n");
     rte_pktmbuf_free(mbuf);
 }
 
