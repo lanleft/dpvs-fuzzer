@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package dpvs;
+
+message MbufMutator {
+    // Basic mbuf fields
+    optional uint32 pkt_len = 1;
+    optional uint32 data_len = 2;
+    optional uint32 port = 3; // proto2 doesn't support optional uint16
+    optional uint32 nb_segs = 4; // proto2 doesn't support optional uint16
+    optional uint32 ol_flags = 5;
+    
+    // Ethernet header
+    optional bytes eth_header = 6;
+    
+    // Optional VLAN tag
+    optional uint32 vlan_tci = 7; // proto2 doesn't support optional uint16
+    
+    // Protocol headers
+    optional bytes ip_header = 8;
+    optional bytes transport_header = 9;
+    
+    // Payload
+    optional bytes payload = 10;
+} 

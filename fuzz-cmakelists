@@ -1,0 +1,439 @@
+cmake_minimum_required(VERSION 3.13)
+
+# Find required packages
+find_package(Protobuf REQUIRED)
+find_package(Threads REQUIRED)
+
+# include(protobuf)
+# include(googletest)
+include_directories(${PROJECT_SOURCE_DIR})
+
+
+# Set fuzzing flags
+set(FUZZING_FLAGS "-fsanitize=fuzzer,address -fno-omit-frame-pointer -g -O1")
+set(FUZZING_FLAGS_BINARY "-fsanitize=fuzzer,address")
+
+# DPVS configuration
+add_definitions(-DDPVS_MAX_LCORE=4 -DDPVS_MAX_SOCKET=2)
+
+# DPDK paths
+set(DPDK_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpdk-24.11")
+set(DPDK_LIB_PATH "${DPDK_PATH}/dpdklib")
+set(DPDK_BUILD_PATH "${DPDK_PATH}/dpdkbuild")
+set(DPVS_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpvs")
+set(PROTOBUF_MUTATOR_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/libprotobuf-mutator/")
+
+# DPDK compiler flags
+set(DPDK_CFLAGS "-include rte_config.h -march=native -mrtm -I${DPDK_LIB_PATH}/include")
+
+# DPDK libraries
+set(DPDK_LIBS
+    -L${DPDK_LIB_PATH}/lib/x86_64-linux-gnu
+    -Wl,--as-needed
+    -lrte_node -lrte_graph -lrte_pipeline -lrte_table -lrte_pdump
+    -lrte_port -lrte_fib -lrte_pdcp -lrte_ipsec -lrte_vhost -lrte_stack
+    -lrte_security -lrte_sched -lrte_reorder -lrte_rib -lrte_mldev
+    -lrte_regexdev -lrte_rawdev -lrte_power -lrte_pcapng -lrte_member
+    -lrte_lpm -lrte_latencystats -lrte_jobstats -lrte_ip_frag -lrte_gso
+    -lrte_gro -lrte_gpudev -lrte_dispatcher -lrte_eventdev -lrte_efd
+    -lrte_dmadev -lrte_distributor -lrte_cryptodev -lrte_compressdev
+    -lrte_cfgfile -lrte_bpf -lrte_bitratestats -lrte_bbdev -lrte_acl
+    -lrte_timer -lrte_hash -lrte_metrics -lrte_cmdline -lrte_pci
+    -lrte_ethdev -lrte_meter -lrte_net -lrte_mbuf -lrte_mempool
+    -lrte_rcu -lrte_ring -lrte_eal -lrte_telemetry -lrte_argparse
+    -lrte_kvargs -lrte_log
+)
+
+# =====================================================================
+# Generate protobuf files
+protobuf_generate_cpp(MBUF_PROTO_SRCS MBUF_PROTO_HDRS mbuf_mutator.proto)
+
+# Create a library for the protobuf files
+add_library(mbuf-mutator-proto
+            ${MBUF_PROTO_SRCS})
+
+add_library(protobuf-mutator-libfuzzer
+            ${PROTOBUF_MUTATOR_PATH}/src/libfuzzer/libfuzzer_mutator.cc
+            ${PROTOBUF_MUTATOR_PATH}/src/libfuzzer/libfuzzer_macro.cc)
+
+
+set_property(TARGET mbuf-mutator-proto
+             PROPERTY COMPILE_FLAGS ${FUZZING_FLAGS})
+
+# Add the fuzzer executable
+add_executable(dpvs-fuzzer dpvs-fuzzer.cc)
+target_link_libraries(dpvs-fuzzer
+                      protobuf-mutator-libfuzzer
+                      mbuf-mutator-proto
+                      ${Protobuf_LIBRARIES}
+                      ${CMAKE_THREAD_LIBS_INIT}
+                      ${DPDK_LIBS})
+
+# Set fuzzing flags for the executable
+set_property(TARGET dpvs-fuzzer
+             PROPERTY COMPILE_FLAGS "${FUZZING_FLAGS} ${DPDK_CFLAGS}")
+set_property(TARGET dpvs-fuzzer
+             PROPERTY LINK_FLAGS ${FUZZING_FLAGS_BINARY})
+
+# Add include directories
+target_include_directories(dpvs-fuzzer PRIVATE
+                          ${Protobuf_INCLUDE_DIRS}
+                          ${DPVS_PATH}/include
+                          ${DPDK_LIB_PATH}/include
+                          ${PROTOBUF_MUTATOR_PATH}
+                          ${CMAKE_CURRENT_SOURCE_DIR}/include/fakes
+                          ${CMAKE_CURRENT_SOURCE_DIR}
+                          ${PROJECT_SOURCE_DIR}) 
+
+
+set(DPVS_HEADERS
+  fuzz/fakes/dpvs-config.h
+  third_party/dpvs/src/ipvs/libconhash/util_rbtree.h
+  third_party/dpvs/src/ipvs/libconhash/conhash_inter.h
+  third_party/dpvs/src/ipvs/libconhash/conhash.h
+  third_party/dpvs/src/ipvs/libconhash/configure.h
+  third_party/dpvs/src/ipvs/libconhash/md5.h
+  third_party/dpvs/include/sctp/sctp.h
+  third_party/dpvs/include/log.h
+  third_party/dpvs/include/pdump.h
+  third_party/dpvs/include/neigh.h
+  third_party/dpvs/include/conf/neigh.h
+  third_party/dpvs/include/conf/ipv6.h
+  third_party/dpvs/include/conf/eal_mem.h
+  third_party/dpvs/include/conf/netif_addr.h
+  third_party/dpvs/include/conf/lldp.h
+  third_party/dpvs/include/conf/blklst.h
+  third_party/dpvs/include/conf/flow.h
+  third_party/dpvs/include/conf/whtlst.h
+  third_party/dpvs/include/conf/vlan.h
+  third_party/dpvs/include/conf/ip_tunnel.h
+  third_party/dpvs/include/conf/conn.h
+  third_party/dpvs/include/conf/dest.h
+  third_party/dpvs/include/conf/inet.h
+  third_party/dpvs/include/conf/laddr.h
+  third_party/dpvs/include/conf/inetaddr.h
+  third_party/dpvs/include/conf/service.h
+  third_party/dpvs/include/conf/stats.h
+  third_party/dpvs/include/conf/match.h
+  third_party/dpvs/include/conf/iftraf.h
+  third_party/dpvs/include/conf/route.h
+  third_party/dpvs/include/conf/ipset.h
+  third_party/dpvs/include/conf/sockopts.h
+  third_party/dpvs/include/conf/netif.h
+  third_party/dpvs/include/conf/common.h
+  third_party/dpvs/include/conf/route6.h
+  third_party/dpvs/include/conf/kni.h
+  third_party/dpvs/include/conf/tc.h
+  third_party/dpvs/include/ctrl.h
+  third_party/dpvs/include/cfgfile.h
+  third_party/dpvs/include/tc/sch.h
+  third_party/dpvs/include/tc/cls.h
+  third_party/dpvs/include/tc/tc.h
+  third_party/dpvs/include/ipv4_frag.h
+  third_party/dpvs/include/ipv6.h
+  third_party/dpvs/include/uoa.h
+  third_party/dpvs/include/netif_flow.h
+  third_party/dpvs/include/eal_mem.h
+  third_party/dpvs/include/route6_hlist.h
+  third_party/dpvs/include/netif_addr.h
+  third_party/dpvs/include/scheduler.h
+  third_party/dpvs/include/lldp.h
+  third_party/dpvs/include/global_conf.h
+  third_party/dpvs/include/ipv4.h
+  third_party/dpvs/include/sys_time.h
+  third_party/dpvs/include/flow.h
+  third_party/dpvs/include/vlan.h
+  third_party/dpvs/include/icmp.h
+  third_party/dpvs/include/ip_tunnel.h
+  third_party/dpvs/include/global_data.h
+  third_party/dpvs/include/list.h
+  third_party/dpvs/include/pidfile.h
+  third_party/dpvs/include/sa_pool.h
+  third_party/dpvs/include/inet.h
+  third_party/dpvs/include/mbuf.h
+  third_party/dpvs/include/inetaddr.h
+  third_party/dpvs/include/ndisc.h
+  third_party/dpvs/include/ipvs/proto_tcp.h
+  third_party/dpvs/include/ipvs/proto_udp.h
+  third_party/dpvs/include/ipvs/mh.h
+  third_party/dpvs/include/ipvs/xmit.h
+  third_party/dpvs/include/ipvs/synproxy.h
+  third_party/dpvs/include/ipvs/siphash.h
+  third_party/dpvs/include/ipvs/proto_icmp.h
+  third_party/dpvs/include/ipvs/rr.h
+  third_party/dpvs/include/ipvs/proxy_proto.h
+  third_party/dpvs/include/ipvs/blklst.h
+  third_party/dpvs/include/ipvs/whtlst.h
+  third_party/dpvs/include/ipvs/conn.h
+  third_party/dpvs/include/ipvs/proto.h
+  third_party/dpvs/include/ipvs/nat64.h
+  third_party/dpvs/include/ipvs/dest.h
+  third_party/dpvs/include/ipvs/kcompat.h
+  third_party/dpvs/include/ipvs/quic.h
+  third_party/dpvs/include/ipvs/laddr.h
+  third_party/dpvs/include/ipvs/sched.h
+  third_party/dpvs/include/ipvs/service.h
+  third_party/dpvs/include/ipvs/wlc.h
+  third_party/dpvs/include/ipvs/ipvs.h
+  third_party/dpvs/include/ipvs/proto_sctp.h
+  third_party/dpvs/include/ipvs/stats.h
+  third_party/dpvs/include/ipvs/conhash.h
+  third_party/dpvs/include/ipvs/wrr.h
+  third_party/dpvs/include/ipvs/redirect.h
+  third_party/dpvs/include/ipvs/fo.h
+  third_party/dpvs/include/parser/vector.h
+  third_party/dpvs/include/parser/utils.h
+  third_party/dpvs/include/parser/parser.h
+  third_party/dpvs/include/icmp6.h
+  third_party/dpvs/include/ipset/pfxlen.h
+  third_party/dpvs/include/ipset/bitops.h
+  third_party/dpvs/include/ipset/ipset_bitmap.h
+  third_party/dpvs/include/ipset/ipset_hash.h
+  third_party/dpvs/include/ipset/ipset.h
+  third_party/dpvs/include/timer.h
+  third_party/dpvs/include/route6_lpm.h
+  third_party/dpvs/include/iftraf.h
+  third_party/dpvs/include/route.h
+  third_party/dpvs/include/linux_if.h
+  third_party/dpvs/include/linux_ipv6.h
+  third_party/dpvs/include/dpdk.h
+  third_party/dpvs/include/netif.h
+  third_party/dpvs/include/mempool.h
+  third_party/dpvs/include/route6.h
+  third_party/dpvs/include/kni.h
+  third_party/dpvs/include/md5.h
+  third_party/dpvs/include/debug.h
+  third_party/dpvs/kmod/toa/toa.h
+  third_party/dpvs/kmod/toa/example_nat64/toa.h
+  third_party/dpvs/kmod/uoa/uoa_extra.h
+  third_party/dpvs/include/tc/sch_pfifo_fast.h
+)
+
+
+set(DPVS_SOURCES
+  third_party/dpvs/src/mempool.c
+  third_party/dpvs/src/linux_if.c
+  third_party/dpvs/src/parser.c
+  third_party/dpvs/src/iftraf.c
+  third_party/dpvs/src/log.c
+  third_party/dpvs/src/tc/sch_pfifo_fast.c
+  third_party/dpvs/src/tc/sch_fifo.c
+  third_party/dpvs/src/tc/cls_ipset.c
+  third_party/dpvs/src/tc/tc.c
+  third_party/dpvs/src/tc/cls.c
+  third_party/dpvs/src/tc/cls_match.c
+  third_party/dpvs/src/tc/sch_shm.c
+  third_party/dpvs/src/tc/tc_ctrl.c
+  third_party/dpvs/src/tc/sch_generic.c
+  third_party/dpvs/src/tc/sch_tbf.c
+  third_party/dpvs/src/neigh.c
+  third_party/dpvs/src/debug.c
+  third_party/dpvs/src/ip_gre.c
+  third_party/dpvs/src/scheduler.c
+  third_party/dpvs/src/sa_pool.c
+  third_party/dpvs/src/global_conf.c
+  third_party/dpvs/src/cfgfile.c
+  third_party/dpvs/src/common.c
+  third_party/dpvs/src/ipv4.c
+  third_party/dpvs/src/eal_mem.c
+  third_party/dpvs/src/sys_time.c
+  third_party/dpvs/src/inetaddr.c
+  third_party/dpvs/src/netif.c
+  third_party/dpvs/src/inet.c
+  third_party/dpvs/src/ipvs/ip_vs_sched.c
+  third_party/dpvs/src/ipvs/ip_vs_proto_tcp.c
+  third_party/dpvs/src/ipvs/ip_vs_dest.c
+  third_party/dpvs/src/ipvs/ip_vs_conhash.c
+  third_party/dpvs/src/ipvs/ip_vs_whtlst.c
+  third_party/dpvs/src/ipvs/kcompat.c
+  third_party/dpvs/src/ipvs/libconhash/conhash_util.c
+  third_party/dpvs/src/ipvs/libconhash/util_rbtree.c
+  third_party/dpvs/src/ipvs/libconhash/md5.c
+  third_party/dpvs/src/ipvs/libconhash/conhash.c
+  third_party/dpvs/src/ipvs/libconhash/conhash_inter.c
+  third_party/dpvs/src/ipvs/siphash.c
+  third_party/dpvs/src/ipvs/ip_vs_laddr.c
+  third_party/dpvs/src/ipvs/ip_vs_nat64.c
+  third_party/dpvs/src/ipvs/ip_vs_redirect.c
+  third_party/dpvs/src/ipvs/ip_vs_stats.c
+  third_party/dpvs/src/ipvs/ip_vs_wrr.c
+  third_party/dpvs/src/ipvs/ip_vs_proxy_proto.c
+  third_party/dpvs/src/ipvs/ip_vs_xmit.c
+  third_party/dpvs/src/ipvs/ip_vs_core.c
+  third_party/dpvs/src/ipvs/ip_vs_proto_icmp.c
+  third_party/dpvs/src/ipvs/ip_vs_blklst.c
+  third_party/dpvs/src/ipvs/ip_vs_service.c
+  third_party/dpvs/src/ipvs/ip_vs_proto_udp.c
+  third_party/dpvs/src/ipvs/ip_vs_wlc.c
+  third_party/dpvs/src/ipvs/ip_vs_quic.c
+  third_party/dpvs/src/ipvs/ip_vs_mh.c
+  third_party/dpvs/src/ipvs/ip_vs_fo.c
+  third_party/dpvs/src/ipvs/ip_vs_proto.c
+  third_party/dpvs/src/ipvs/ip_vs_proto_sctp.c
+  third_party/dpvs/src/ipvs/ip_vs_conn.c
+  third_party/dpvs/src/ipvs/ip_vs_synproxy.c
+  third_party/dpvs/src/ipvs/ip_vs_rr.c
+  third_party/dpvs/src/global_data.c
+  third_party/dpvs/src/netif_flow.c
+  third_party/dpvs/src/ipset/ipset_hash_ipport.c
+  third_party/dpvs/src/ipset/ipset_bitmap_port.c
+  third_party/dpvs/src/ipset/ipset_bitmap_ipmac.c
+  third_party/dpvs/src/ipset/ipset_ctrl.c
+  third_party/dpvs/src/ipset/ipset_hash_netport.c
+  third_party/dpvs/src/ipset/ipset_hash_ipportip.c
+  third_party/dpvs/src/ipset/ipset_bitmap_ip.c
+  third_party/dpvs/src/ipset/ipset_hash_netportnetport.c
+  third_party/dpvs/src/ipset/ipset_hash.c
+  third_party/dpvs/src/ipset/ipset_hash_netportiface.c
+  third_party/dpvs/src/ipset/ipset_core.c
+  third_party/dpvs/src/ipset/ipset_bitmap.c
+  third_party/dpvs/src/ipset/ipset_hash_net.c
+  third_party/dpvs/src/ipset/ipset_hash_ipportnet.c
+  third_party/dpvs/src/ipset/ipset_hash_netportnet.c
+  third_party/dpvs/src/ipset/ipset_hash_ip.c
+  third_party/dpvs/src/ipset/pfxlen.c
+  third_party/dpvs/src/ipip.c
+  third_party/dpvs/src/main.c
+  third_party/dpvs/src/route.c
+  third_party/dpvs/src/vlan.c
+  third_party/dpvs/src/icmp.c
+  third_party/dpvs/src/lldp.c
+  third_party/dpvs/src/kni.c
+  third_party/dpvs/src/pdump.c
+  third_party/dpvs/src/netif_addr.c
+  third_party/dpvs/src/ip_tunnel.c
+  third_party/dpvs/src/ctrl.c
+  third_party/dpvs/src/mbuf.c
+  third_party/dpvs/src/ipv6/route6.c
+  third_party/dpvs/src/ipv6/route6_hlist.c
+  third_party/dpvs/src/ipv6/ipv6_ctrl.c
+  third_party/dpvs/src/ipv6/route6_lpm.c
+  third_party/dpvs/src/ipv6/icmp6.c
+  third_party/dpvs/src/ipv6/ndisc.c
+  third_party/dpvs/src/ipv6/ipv6.c
+  third_party/dpvs/src/ipv6/ipv6_exthdrs.c
+  third_party/dpvs/src/ipv4_frag.c
+  third_party/dpvs/src/timer.c
+  third_party/dpvs/src/pidfile.c
+  third_party/dpvs/kmod/toa/toa.c
+  third_party/dpvs/kmod/toa/example_nat64/client.c
+  third_party/dpvs/kmod/toa/example_nat64/server.c
+  third_party/dpvs/kmod/uoa/uoa.c
+  third_party/dpvs/kmod/uoa/example/udp_serv.c
+  third_party/dpvs/kmod/uoa/example/uperf.c
+  third_party/dpvs/kmod/uoa/example/opp.c
+)
+
+
+set(DPVS_INCLUDE
+  third_party/dpvs/include/sctp/sctp.h
+  third_party/dpvs/include/log.h
+  third_party/dpvs/include/pdump.h
+  third_party/dpvs/include/neigh.h
+  third_party/dpvs/include/conf/neigh.h
+  third_party/dpvs/include/conf/ipv6.h
+  third_party/dpvs/include/conf/eal_mem.h
+  third_party/dpvs/include/conf/netif_addr.h
+  third_party/dpvs/include/conf/lldp.h
+  third_party/dpvs/include/conf/blklst.h
+  third_party/dpvs/include/conf/flow.h
+  third_party/dpvs/include/conf/whtlst.h
+  third_party/dpvs/include/conf/vlan.h
+  third_party/dpvs/include/conf/ip_tunnel.h
+  third_party/dpvs/include/conf/conn.h
+  third_party/dpvs/include/conf/dest.h
+  third_party/dpvs/include/conf/inet.h
+  third_party/dpvs/include/conf/laddr.h
+  third_party/dpvs/include/conf/inetaddr.h
+  third_party/dpvs/include/conf/service.h
+  third_party/dpvs/include/conf/stats.h
+  third_party/dpvs/include/conf/match.h
+  third_party/dpvs/include/conf/iftraf.h
+  third_party/dpvs/include/conf/route.h
+  third_party/dpvs/include/conf/ipset.h
+  third_party/dpvs/include/conf/sockopts.h
+  third_party/dpvs/include/conf/netif.h
+  third_party/dpvs/include/conf/common.h
+  third_party/dpvs/include/conf/route6.h
+  third_party/dpvs/include/conf/kni.h
+  third_party/dpvs/include/conf/tc.h
+  third_party/dpvs/include/ctrl.h
+  third_party/dpvs/include/cfgfile.h
+  third_party/dpvs/include/tc/sch.h
+  third_party/dpvs/include/tc/cls.h
+  third_party/dpvs/include/tc/tc.h
+  third_party/dpvs/include/ipv4_frag.h
+  third_party/dpvs/include/ipv6.h
+  third_party/dpvs/include/uoa.h
+  third_party/dpvs/include/netif_flow.h
+  third_party/dpvs/include/eal_mem.h
+  third_party/dpvs/include/route6_hlist.h
+  third_party/dpvs/include/netif_addr.h
+  third_party/dpvs/include/scheduler.h
+  third_party/dpvs/include/lldp.h
+  third_party/dpvs/include/global_conf.h
+  third_party/dpvs/include/ipv4.h
+  third_party/dpvs/include/sys_time.h
+  third_party/dpvs/include/flow.h
+  third_party/dpvs/include/vlan.h
+  third_party/dpvs/include/icmp.h
+  third_party/dpvs/include/ip_tunnel.h
+  third_party/dpvs/include/global_data.h
+  third_party/dpvs/include/list.h
+  third_party/dpvs/include/pidfile.h
+  third_party/dpvs/include/sa_pool.h
+  third_party/dpvs/include/inet.h
+  third_party/dpvs/include/mbuf.h
+  third_party/dpvs/include/inetaddr.h
+  third_party/dpvs/include/ndisc.h
+  third_party/dpvs/include/ipvs/proto_tcp.h
+  third_party/dpvs/include/ipvs/proto_udp.h
+  third_party/dpvs/include/ipvs/mh.h
+  third_party/dpvs/include/ipvs/xmit.h
+  third_party/dpvs/include/ipvs/synproxy.h
+  third_party/dpvs/include/ipvs/siphash.h
+  third_party/dpvs/include/ipvs/proto_icmp.h
+  third_party/dpvs/include/ipvs/rr.h
+  third_party/dpvs/include/ipvs/proxy_proto.h
+  third_party/dpvs/include/ipvs/blklst.h
+  third_party/dpvs/include/ipvs/whtlst.h
+  third_party/dpvs/include/ipvs/conn.h
+  third_party/dpvs/include/ipvs/proto.h
+  third_party/dpvs/include/ipvs/nat64.h
+  third_party/dpvs/include/ipvs/dest.h
+  third_party/dpvs/include/ipvs/kcompat.h
+  third_party/dpvs/include/ipvs/quic.h
+  third_party/dpvs/include/ipvs/laddr.h
+  third_party/dpvs/include/ipvs/sched.h
+  third_party/dpvs/include/ipvs/service.h
+  third_party/dpvs/include/ipvs/wlc.h
+  third_party/dpvs/include/ipvs/ipvs.h
+  third_party/dpvs/include/ipvs/proto_sctp.h
+  third_party/dpvs/include/ipvs/stats.h
+  third_party/dpvs/include/ipvs/conhash.h
+  third_party/dpvs/include/ipvs/wrr.h
+  third_party/dpvs/include/ipvs/redirect.h
+  third_party/dpvs/include/ipvs/fo.h
+  third_party/dpvs/include/parser/vector.h
+  third_party/dpvs/include/parser/utils.h
+  third_party/dpvs/include/parser/parser.h
+  third_party/dpvs/include/icmp6.h
+  third_party/dpvs/include/ipset/pfxlen.h
+  third_party/dpvs/include/ipset/bitops.h
+  third_party/dpvs/include/ipset/ipset_bitmap.h
+  third_party/dpvs/include/ipset/ipset_hash.h
+  third_party/dpvs/include/ipset/ipset.h
+  third_party/dpvs/include/timer.h
+  third_party/dpvs/include/route6_lpm.h
+  third_party/dpvs/include/iftraf.h
+  third_party/dpvs/include/route.h
+  third_party/dpvs/include/linux_if.h
+  third_party/dpvs/include/linux_ipv6.h
+  third_party/dpvs/include/dpdk.h
+  third_party/dpvs/include/netif.h
+  third_party/dpvs/include/mempool.h
+  third_party/dpvs/include/route6.h
+  third_party/dpvs/include/md5.h
+  third_party/dpvs/include/debug.h
+  third_party/dpvs/include/tc/tc.h
+)

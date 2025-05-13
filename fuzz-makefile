@@ -1,0 +1,71 @@
+CC = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/AFLplusplus/afl-clang-fast
+CXX = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/AFLplusplus/afl-clang-fast++
+
+CFLAGS = -g -O1 -fsanitize=fuzzer,address -fno-omit-frame-pointer -std=c99 -Wall -Wextra -Werror
+CXXFLAGS = -g -O1 -fsanitize=fuzzer,address -fno-omit-frame-pointer -std=c++11 -Wall -Wextra -Werror,-Wsign-compare
+
+# # DPVS configuration
+DEFS = -DDPVS_MAX_LCORE=4
+DEFS += -DDPVS_MAX_SOCKET=2
+
+
+# DPDK paths
+DPDK_PATH = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpdk-24.11
+DPDK_LIB_PATH = $(DPDK_PATH)/dpdklib
+DPDK_BUILD_PATH = $(DPDK_PATH)/dpdkbuild
+DPVS_PATH = ../dpvs
+PROTOBUF_MUTATOR_PATH = ../libprotobuf-mutator
+
+# DPDK pkg-config
+# export PKG_CONFIG_PATH = $(DPDK_LIB_PATH)/lib/x86_64-linux-gnu/pkgconfig
+# print PKG_CONFIG_PATH
+# $(info PKG_CONFIG_PATH: $(PKG_CONFIG_PATH))
+DPDK_CFLAGS := -include rte_config.h -march=native -mrtm -I$(DPDK_LIB_PATH)/include
+DPDK_LIBS := -L$(DPDK_LIB_PATH)/lib/x86_64-linux-gnu -Wl,--as-needed -lrte_node -lrte_graph -lrte_pipeline -lrte_table -lrte_pdump -lrte_port -lrte_fib -lrte_pdcp -lrte_ipsec -lrte_vhost -lrte_stack -lrte_security -lrte_sched -lrte_reorder -lrte_rib -lrte_mldev -lrte_regexdev -lrte_rawdev -lrte_power -lrte_pcapng -lrte_member -lrte_lpm -lrte_latencystats -lrte_jobstats -lrte_ip_frag -lrte_gso -lrte_gro -lrte_gpudev -lrte_dispatcher -lrte_eventdev -lrte_efd -lrte_dmadev -lrte_distributor -lrte_cryptodev -lrte_compressdev -lrte_cfgfile -lrte_bpf -lrte_bitratestats -lrte_bbdev -lrte_acl -lrte_timer -lrte_hash -lrte_metrics -lrte_cmdline -lrte_pci -lrte_ethdev -lrte_meter -lrte_net -lrte_mbuf -lrte_mempool -lrte_rcu -lrte_ring -lrte_eal -lrte_telemetry -lrte_argparse -lrte_kvargs -lrte_log
+
+
+# $(info DPDK_CFLAGS: $(DPDK_CFLAGS))
+# $(info DPDK_LIBS: $(DPDK_LIBS))
+
+# Include paths
+INCLUDES = -I$(DPVS_PATH)/include \
+           -I$(DPDK_LIB_PATH)/include \
+           -I$(PROTOBUF_MUTATOR_PATH)/ \
+           -I/usr/include \
+           -I/usr/local/include \
+		   -I/usr/local/include/libprotobuf-mutator \
+           -I./include/fakes \
+		   -I./ \
+           $(DPDK_CFLAGS)
+
+# static library paths
+# LDFLAGS = $(PROTOBUF_MUTATOR_PATH)/build/src/libfuzzer/
+# LDFLAGS += $(PROTOBUF_MUTATOR_PATH)/build/src/
+DPDK_LIBS += -L/usr/local/lib
+
+# Libraries
+LIBS = -lprotobuf-mutator-libfuzzer -lprotobuf-mutator $(DPDK_LIBS)
+
+# Source files
+SRCS = dpvs-fuzzer.cc
+
+# Object files
+OBJS = $(SRCS:.cc=.o)
+
+# Target
+TARGET = dpvs-fuzzer
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	echo "===========> Building $(TARGET) with $(OBJS)"
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) $(DEFS)
+
+%.o: %.cc
+	echo "===========> Building2 $(@) with $<"
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFS) $(LDFLAGS) $(LIBS) $(DEFS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+.PHONY: all clean
