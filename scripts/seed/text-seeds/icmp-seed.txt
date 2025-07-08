@@ -1,0 +1,22 @@
+icmp_packet {
+    ip4_hdr {
+      ip_hl: 5
+      ip_vrs: IPV4_VERSION
+      ip_tos: 0
+      ip_len: 40
+      ip_id: 123
+      ip_off: 0
+      ip_ttl: 64
+      ip_p: IPPROTO_ICMP
+      ip_src: IN4_SRC_ADDR_0
+      ip_dst: IN4_DST_ADDR_0
+    }
+    icmp_hdr {
+      icmp_type: MY_ICMP_TYPE_ECHO_REQUEST
+      icmp_code: MY_ICMP_CODE_REDIRECT_NET
+      icmp_id: 1
+      icmp_seq: 1
+    }
+    data: "ping test payload"
+  }
+  

@@ -1,0 +1,716 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <netinet/tcp.h>
+#include <rte_tcp.h>
+
+#if __cplusplus
+extern "C" {
+#endif
+
+#include "dpvs-config.h"
+#include "netif.h"
+#include "scheduler.h"
+#include "global_data.h"
+#include "rte_malloc.h"
+
+#include "ipv4.h"
+#include "neigh.h"
+#include "ipset/ipset.h"
+#include "ipvs/ipvs.h"
+
+// include from dpvs main.c 
+#include "pidfile.h"
+#include "dpdk.h"
+#include "conf/common.h"
+#include "log.h"
+#include "vlan.h"
+#include "inet.h"
+#include "timer.h"
+#include "ctrl.h"
+#include "sa_pool.h"
+#include "cfgfile.h"
+#include "ip_tunnel.h"
+#include "sys_time.h"
+#include "route6.h"
+#include "iftraf.h"
+#include "eal_mem.h"
+#include "pdump.h"
+#include "rte_eal.h"
+#include "rte_log.h"
+
+// include for DPDK
+
+#if __cplusplus
+}
+#endif
+
+#include "src/libfuzzer/libfuzzer_macro.h"
+#include "src/text_format.h"
+#include "mbuf_mutator.pb.h"
+
+
+#define DPVS    "dpvs"
+#define RTE_LOGTYPE_DPVS RTE_LOGTYPE_USER1
+
+#define LCORE_CONF_BUFFER_LEN 4096
+
+// Global variables
+// static struct rte_mempool *mbuf_pool = pktmbuf_pool[0];
+static struct netif_port *dev_port = NULL;
+
+
+static bool modules_init(void) {
+
+    // scheduler_init
+    printf("[INIT_MODULES] Calling scheduler_init\n");
+    if (dpvs_scheduler_init() < 0) {
+        return false;
+    }
+
+    // global_data_init
+    printf("[INIT_MODULES] Calling global_data_init\n");
+    if (global_data_init() < 0) {
+        return false;
+    }
+
+    // mbuf_init
+    printf("[INIT_MODULES] Calling mbuf_init\n");
+    if (mbuf_init() < 0) {
+        return false;
+    }
+
+    // cfgfile_init
+    printf("[INIT_MODULES] Calling cfgfile_init\n");
+    if (cfgfile_init() < 0) {
+        return false;
+    }
+
+    // pdump_init
+    printf("[INIT_MODULES] Calling pdump_init\n");
+    if (pdump_init() < 0) {
+        return false;
+    }
+
+    // netif_vdevs_add
+    printf("[INIT_MODULES] Calling netif_vdevs_add\n");
+    if (netif_vdevs_add() < 0) {
+        return false;
+    }
+
+    // dpvs_timer_init
+    printf("[INIT_MODULES] Calling dpvs_timer_init\n");
+    if (dpvs_timer_init() < 0) {
+        return false;
+    }
+
+    // tc_init
+    printf("[INIT_MODULES] Calling tc_init\n");
+    if (tc_init() < 0) {
+        return false;
+    }
+
+    // Setup netif_init
+    printf("[INIT_MODULES] Calling netif_init\n");
+    if (netif_init() < 0) {
+        return false;
+    }
+
+    // init ctrl_init module
+    printf("[INIT_MODULES] Calling ctrl_init\n");
+    if (ctrl_init() < 0) {
+        return false;
+    }
+
+    // // init vlan module
+    // if (vlan_init() < 0) {
+    //     return -1;
+    // }
+
+    // // init ip module
+    // if (ip_init() < 0) {
+    //     return -1;
+    // }
+
+    // init inet module inet_init
+    printf("[INIT_MODULES] Calling inet_init\n");
+    if (inet_init() < 0) {
+        return false;
+    }
+
+    return true;
+}
+
+
+static int set_all_thread_affinity(void)
+{
+    int s;
+    lcoreid_t cid;
+    pthread_t tid;
+    cpu_set_t cpuset;
+    unsigned long long cpumask=0;
+
+    tid = pthread_self();
+    CPU_ZERO(&cpuset);
+    for (cid = 0; cid < RTE_MAX_LCORE; cid++)
+        CPU_SET(cid, &cpuset);
+
+    s = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
+    if (s != 0) {
+        errno = s;
+        perror("fail to set thread affinty");
+        return -1;
+    }
+
+    CPU_ZERO(&cpuset);
+    s = pthread_getaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
+    if (s != 0) {
+        errno = s;
+        perror("fail to get thread affinity");
+        return -2;
+    }
+
+    for (cid = 0; cid < RTE_MAX_LCORE; cid++) {
+        if (CPU_ISSET(cid, &cpuset))
+            cpumask |= (1LL << cid);
+    }
+    printf("current thread affinity is set to %llX\n", cpumask);
+
+    return 0;
+}
+
+// Initialize DPDK environment and mbuf pool
+static int init_dpdk(void) {
+    int err, nports;
+    char pool_name[32];
+    char *argv[5];
+    struct timeval tv;
+    portid_t pid;
+
+    char pql_conf_buf[LCORE_CONF_BUFFER_LEN];
+    int pql_conf_buf_len = LCORE_CONF_BUFFER_LEN;
+
+    printf("Initializing DPDK environment\n");
+    argv[0] = (char *)malloc(10);
+    memset(argv[0], 0, 10);
+    strcpy(argv[0], "dpvs\0");
+
+    // parse arguments
+    if (!dpvs_ipc_file)
+        dpvs_ipc_file="/var/run/dpvs.ipc";
+
+    if (!dpvs_conf_file)
+        dpvs_conf_file="/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/fuzz/dpvs.conf";
+
+    if (!dpvs_pid_file)
+        dpvs_pid_file="/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/fuzz/dpvs.pid";
+
+    // 
+    dpvs_state_set(DPVS_STATE_INIT);
+
+    gettimeofday(&tv, NULL);
+    srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
+    srand48(tv.tv_sec ^ tv.tv_usec ^ getpid());
+    rte_srand((uint64_t)(tv.tv_sec ^ tv.tv_usec ^ getpid()));
+    sys_start_time();
+
+    if (get_numa_nodes() > DPVS_MAX_SOCKET) {
+        fprintf(stderr, "DPVS_MAX_SOCKET is smaller than system numa nodes!\n");
+        return -1;
+    }
+
+    if (set_all_thread_affinity() != 0) {
+        fprintf(stderr, "set_all_thread_affinity failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize EAL
+    printf("Initializing EAL\n");
+    err = rte_eal_init(1, argv);
+    if (err < 0){
+        printf("[ERR] Invalid EAL parameters\n");
+        return -1;
+    }
+
+    RTE_LOG(INFO, DPVS, "dpvs version: %s, build on %s\n", DPVS_VERSION, DPVS_BUILD_DATE);
+    RTE_LOG(INFO, DPVS, "dpvs-conf-file: %s\n", dpvs_conf_file);
+    RTE_LOG(INFO, DPVS, "dpvs-pid-file: %s\n", dpvs_pid_file);
+    RTE_LOG(INFO, DPVS, "dpvs-ipc-file: %s\n", dpvs_ipc_file);
+
+    rte_timer_subsystem_init();
+    
+    // init modules
+    if (!modules_init()) {
+        return -1;
+    }
+
+    /* config and start all available dpdk ports */
+    // nports = dpvs_rte_eth_dev_count();
+    // nports = 1;
+    // dev_port = netif_port_get(0);
+    // if (!dev_port) {
+    //     RTE_LOG(INFO, DPVS, "netif port of portid %d not found, likely kni portid, skip ...\n", pid);
+    //     continue;
+    // }
+
+    // err = netif_port_start(dev_port);
+    // if (err != EDPVS_OK)
+    //     RTE_LOG(WARNING, DPVS, "Start %s failed, skipping ...\n",
+    //             dev_port->name);
+
+    // Create a test network interface
+    printf("Config and start dpdk port");
+    dev_port = netif_alloc(NETIF_PORT_ID_INVALID, 0, "test%d", 1, 1, NULL);
+    if (!dev_port) {
+        return -1;
+    }
+    
+    // Set up basic port configuration
+    printf("Setting up basic port configuration\n");
+    dev_port->mbuf_pool = pktmbuf_pool[0];
+    dev_port->flag |= NETIF_PORT_FLAG_ENABLED | NETIF_PORT_FLAG_FORWARD2KNI;
+    dev_port->mtu = 1500;
+
+
+    /* print port-queue-lcore relation */
+    netif_print_lcore_conf(pql_conf_buf, &pql_conf_buf_len, true, 0);
+    RTE_LOG(INFO, DPVS, "port-queue-lcore relation array: \n%s\n",
+            pql_conf_buf);
+
+    // /* start slave worker threads */ // <--- pay attention for racing condition
+    // dpvs_lcore_start(0);
+
+    // /* start async logging worker thread */
+    // log_slave_init();
+
+    /* write pid file */
+    if (!pidfile_write(dpvs_pid_file, getpid()))
+        return -1;
+
+    dpvs_state_set(DPVS_STATE_NORMAL);
+
+    // /* start control plane thread loop */
+    // dpvs_lcore_start(1);
+
+    // ending
+
+    return 0;
+}
+
+
+uint16_t ipv4_checksum(const struct rte_ipv4_hdr *ipv4_hdr)
+{
+	const uint16_t *v16_h;
+	uint32_t ip_cksum;
+
+	/*
+	 * Compute the sum of successive 16-bit words of the IPv4 header,
+	 * skipping the checksum field of the header.
+	 */
+	v16_h = (const uint16_t *)ipv4_hdr;
+	ip_cksum = v16_h[0] + v16_h[1] + v16_h[2] + v16_h[3] +
+		v16_h[4] + v16_h[6] + v16_h[7] + v16_h[8] + v16_h[9];
+
+	/* reduce 32 bit checksum to 16 bits and complement it */
+	ip_cksum = (ip_cksum & 0xffff) + (ip_cksum >> 16);
+	ip_cksum = (ip_cksum & 0xffff) + (ip_cksum >> 16);
+	return (uint16_t)(~ip_cksum);
+}
+
+// Ethernet header: 14 bytes
+static bool serialize_eth_header(const dpvs::EthHeader& eth, uint8_t* data) {
+    static const uint8_t macs[][6] = {
+        {0x00,0x11,0x22,0x33,0x44,0x55}, // ETH_ADDR_0
+        {0x66,0x77,0x88,0x99,0xaa,0xbb}, // ETH_ADDR_1
+        {0xcc,0xdd,0xee,0xff,0x00,0x11}, // ETH_ADDR_2
+        {0x12,0x34,0x56,0x78,0x9a,0xbc}, // ETH_ADDR_3
+        {0xde,0xad,0xbe,0xef,0xca,0xfe}, // ETH_ADDR_4
+        {0xba,0xdc,0x0f,0xfe,0xed,0xfa}, // ETH_ADDR_5
+    };
+    if (!eth.has_eth_dst()) {
+        printf("[ERR] No destination MAC address\n");
+        return false;
+    } else {
+        memcpy(data, macs[eth.eth_dst()], 6);
+    }
+    if (!eth.has_eth_src()) {
+        printf("[ERR] No source MAC address\n");
+        return false;
+    } else {
+        memcpy(data+6, macs[eth.eth_src()], 6);
+    }
+    if (!eth.has_eth_type()) {
+        printf("[ERR] No Ethernet type\n");
+        return false;
+    } else {
+        uint16_t eth_type = htons(eth.eth_type());
+        memcpy(data+12, &eth_type, 2);
+    }
+    return true;
+}
+
+// IPv4 header: 20 bytes
+static bool serialize_ip_header(const dpvs::IpHeader& ip, uint8_t* out) {
+    if (!ip.has_ip_v()) {
+        printf("[ERR] No IP version\n");
+        return false;
+    } else {
+        out[0] = ((ip.ip_v() & 0xF) << 4) | (ip.ip_hl() & 0xF);
+    }
+    if (!ip.has_ip_tos()) {
+        printf("[ERR] No IP type of service\n");
+        return false;
+    } else {
+        out[1] = ip.ip_tos();
+    }
+    if (!ip.has_ip_len()) {
+        printf("[ERR] No IP length\n");
+        return false;
+    } else {
+        uint16_t len = htons(ip.ip_len() & 0xffff);
+        memcpy(out+2, &len, 2);
+    }
+    if (!ip.has_ip_id()) {
+        printf("[ERR] No IP ID\n");
+        return false;
+    } else {
+        // TODO: enum packet id
+        uint16_t id = htons(ip.ip_id() & 0xffff);
+        memcpy(out+4, &id, 2);
+    }
+    if (!ip.has_ip_off()) {
+        printf("[ERR] No IP offset\n");
+        return false;
+    } else {
+        uint16_t off = htons(ip.ip_off() & 0xffff);
+        memcpy(out+6, &off, 2);
+    }
+    if (!ip.has_ip_ttl()) {
+        printf("[ERR] No IP TTL\n");
+        return false;
+    } else {
+        out[8] = ip.ip_ttl() & 0xff;
+    }
+    if (!ip.has_ip_p()) {
+        printf("[ERR] No IP protocol\n");
+        return false;
+    } else {
+        // TODO: protocol id could be enumable
+        out[9] = ip.ip_p() & 0xff;
+    }
+
+    if (!ip.has_ip_src()) {
+        printf("[ERR] No IP source address\n");
+        return false;
+    } else {
+        uint32_t src = htonl(ip.ip_src());
+        memcpy(out+12, &src, 4);
+    }
+    if (!ip.has_ip_dst()) {
+        printf("[ERR] No IP destination address\n");
+        return false;
+    } else {
+        uint32_t dst = htonl(ip.ip_dst());
+        memcpy(out+16, &dst, 4);
+    }
+
+    uint16_t hdr_checksum = 0;
+    memcpy(out+10, &hdr_checksum, 2);
+    uint16_t hlen = (out[0] & 0xf) << 2;
+    hdr_checksum = rte_raw_cksum(out, hlen);
+    hdr_checksum = ~hdr_checksum;
+    memcpy(out+10, &hdr_checksum, 2);
+    // iph->hdr_checksum = ~iph->hdr_checksum; 
+    printf("[INFO] IP header checksum: %x\n",hdr_checksum);
+
+    return true;
+}
+
+
+// TCP header: 20 bytes
+static bool serialize_tcp_header(const dpvs::TcpHdr& tcp, uint8_t* out) {
+    if (!tcp.has_th_sport()) {
+        printf("[ERR] No TCP source port\n");
+        return false;
+    } else {
+        uint16_t sport = htons(tcp.th_sport());
+        memcpy(out, &sport, 2);
+    }
+    if (!tcp.has_th_dport()) {
+        printf("[ERR] No TCP destination port\n");
+        return false;
+    } else {
+        uint16_t dport = htons(tcp.th_dport());
+        memcpy(out+2, &dport, 2);
+    }
+    if (!tcp.has_th_seq()) {
+        printf("[ERR] No TCP sequence number\n");
+        return false;
+    } else {
+        uint32_t seq = htonl(tcp.th_seq());
+        memcpy(out+4, &seq, 4);
+    }
+    if (!tcp.has_th_ack()) {
+        printf("[ERR] No TCP acknowledgment number\n");
+        return false;
+    } else {
+        uint32_t ack = htonl(tcp.th_ack());
+        memcpy(out+8, &ack, 4);
+    }
+    if (!tcp.has_th_off()) {
+        printf("[ERR] No TCP data offset\n");
+        return false;
+    } else {
+        out[12] = (tcp.th_off() << 4); // Data offset (upper 4 bits)
+    }
+    // Flags: OR all flags in the repeated field
+    if (tcp.th_flags_size() == 0) {
+        printf("[ERR] No TCP flags\n");
+        return false;
+    } else {
+        uint8_t flags = 0;
+        for (int i = 0; i < tcp.th_flags_size(); ++i) {
+            flags |= tcp.th_flags(i);
+        }
+        out[13] = flags;
+    }
+    if (!tcp.has_th_win()) {
+        printf("[ERR] No TCP window size\n");
+        return false;
+    } else {
+        uint16_t win = htons(tcp.th_win());
+        memcpy(out+14, &win, 2);
+    }
+    if (!tcp.has_th_sum() || tcp.th_sum() == 0) {
+        // TODO: calculate tcp checksum
+        uint16_t csum = 0x1122;
+        memcpy(out+16, &csum, 2);
+        printf("[INFO] TCP checksum: %x\n", csum);
+    } else {
+        // Use provided checksum value
+        uint16_t sum = htons(tcp.th_sum());
+        memcpy(out+16, &sum, 2);
+        printf("[INFO] TCP checksum provided: %x\n", sum);
+    }
+    if (!tcp.has_th_urp()) {
+        printf("[ERR] No TCP urgent pointer\n");
+        return false;
+    } else {
+        uint16_t urp = htons(tcp.th_urp());
+        memcpy(out+18, &urp, 2);
+    }
+
+    // struct rte_ipv6_hdr *ip6_hdr = (struct rte_ipv6_hdr *)out;
+    
+    return true;
+}
+
+
+void DoTcpInput(struct rte_mbuf *mbuf) {
+    struct rte_ipv6_hdr *ip6_hdr = rte_pktmbuf_mtod(mbuf, struct rte_ipv6_hdr *);
+}
+
+void DoIpInput(struct rte_mbuf *mbuf) {
+    // .. do something
+}
+
+
+// TODO: modify this to support more packet types
+static struct rte_mbuf* create_mbuf_from_proto(const dpvs::Mbuf& proto) {
+    struct rte_mbuf *mbuf;
+    uint8_t *data;
+    uint8_t eth_header_size = 14;
+    uint8_t ip_header_size = 20;
+    uint8_t transport_header_size = 20;
+    uint32_t payload_size = proto.has_payload() ? proto.payload().size() : 0;
+
+    mbuf = rte_pktmbuf_alloc(pktmbuf_pool[0]);
+    if (!mbuf) {
+        return NULL;
+    }
+
+    mbuf_userdata_reset(mbuf);
+
+    mbuf->port = 0;
+    mbuf->nb_segs = 1;
+    mbuf->ol_flags = 0;
+    mbuf->packet_type = proto.packet_type();
+
+    data = rte_pktmbuf_mtod(mbuf, uint8_t *);  // void *buf_addr -> buffer pointer
+
+    // Ethernet header
+    if (proto.eth_header_size() > 0) {
+        if (!serialize_eth_header(proto.eth_header(0), data)) {
+            printf("[ERR] Failed to serialize Ethernet header\n");
+            return NULL;
+        }
+    } else {
+        printf("[ERR] No Ethernet header\n");
+        return NULL;
+    }
+    data += eth_header_size;
+
+    // VLAN tag // optional 
+    if (proto.has_vlan_tci()) {
+        mbuf->vlan_tci = proto.vlan_tci();
+        mbuf->ol_flags |= RTE_MBUF_F_RX_VLAN_STRIPPED;
+    }
+
+    // IP header
+    if (proto.ip_header_size() > 0) {
+        if (!serialize_ip_header(proto.ip_header(0), data)) {
+            printf("[ERR] Failed to serialize IP header\n");
+            return NULL;
+        }
+    } else {
+        printf("[ERR] No IP header\n");
+        return NULL;
+    }
+    data += ip_header_size;
+
+    // Transport header
+    if (proto.transport_header_size() > 0) {
+        if (!serialize_tcp_header(proto.transport_header(0), data)) {
+            printf("[ERR] Failed to serialize TCP header\n");
+            return NULL;
+        }
+    } else {
+        printf("[ERR] No transport header\n");
+        return NULL;
+    }
+    data += transport_header_size;
+
+    // Payload -> optional
+    if (proto.has_payload()) {
+        if (proto.payload().size() > 0) {
+            memcpy(data, proto.payload().data(), proto.payload().size());
+        }
+    }
+
+    mbuf->pkt_len = eth_header_size + ip_header_size + transport_header_size + payload_size;
+    mbuf->data_len = mbuf->pkt_len; // data len 
+    mbuf->data_off = 128; // data offset 
+
+    // printf("[INFO] create proto mbuf: %p\n", mbuf);
+    return mbuf;
+}
+
+#if defined(LLVM_BATCH_TEST)
+
+void print_buffer(const char *buffer, int length) {
+    for (int i = 0; i < length; i++) {
+        printf("%c", (unsigned char)buffer[i]);
+    }
+    printf("\n");
+}
+
+int main(int argc, char **argv) {
+    static bool initialized = false;
+    struct rte_mbuf *mbuf;
+    int err;
+    dpvs::Mbuf proto;
+    
+    printf("Begining normal main\n");
+    if (!initialized) {
+        if (init_dpdk() < 0) {
+            return 1;
+        }
+
+        initialized = true;
+    }
+
+    /* batch test */
+
+    if (getenv("FUZZ_BATCH_TEST")) {
+        printf("\033[1;33mBatch test\033[0m\n");
+        char *list_file = getenv("FUZZ_BATCH_TEST");
+        if (!list_file) {
+            printf("No list file provided\n");
+            return 1;
+        }
+        FILE *fp = fopen(list_file, "r");
+        if (!fp) {
+            printf("Failed to open list file: %s\n", list_file);
+            return 1;
+        }
+        char line[1024];
+        while (fgets(line, sizeof(line), fp)) {
+            line[strcspn(line, "\n")] = '\0';
+            printf("Processing file: %s\n", line);
+
+            // open fd
+            int fd = open(line, O_RDONLY);
+            if (fd < 0) {
+                printf("Failed to open file: %s\n", line);
+                return 1;
+            }
+
+            // Parse the buffer as a binary protobuf
+            // ParseTextMessage
+            if (proto.ParseFromFileDescriptor(fd)) {
+                printf("\033[1;33mCreating mbuf from protobuf message\033[0m\n");
+                mbuf = create_mbuf_from_proto(proto);
+                if (!mbuf) {
+                    printf("\033[1;31mFailed to create mbuf from protobuf message\033[0m\n");
+                    continue;
+                }
+                printf("\033[1;32mCalling netif_rcv_mbuf\033[0m\n");
+                netif_rcv_mbuf(dev_port, rte_lcore_id(), mbuf, false);
+                rte_pktmbuf_free(mbuf);
+            } else {
+                printf("\033[1;31mFailed to parse protobuf message\033[0m\n");
+            }
+        }
+        fclose(fp);
+        return 0;
+    }
+
+    return 0;
+}
+
+#else 
+
+// Main fuzzer function
+DEFINE_PROTO_FUZZER(const dpvs::Mbuf& proto) {
+    static bool initialized = false;
+    static struct rte_mbuf *mbuf = NULL;
+    
+    printf("Begining fuzzing\n");
+    if (!initialized) {
+        if (init_dpdk() < 0) {
+            return;
+        }
+
+        initialized = true;
+    }
+    // yellow color
+    printf("\033[1;33mCreating mbuf from protobuf message\033[0m\n");
+    // Create mbuf from protobuf message
+    mbuf = create_mbuf_from_proto(proto);
+    if (!mbuf) {
+        return;
+    }
+    
+    // print with green color, and bold
+    printf("\033[1;32mCalling netif_rcv_mbuf\033[0m\n");
+    // printf("[INFO] mbuf: %p\n", mbuf);
+    // Call the target function
+    netif_rcv_mbuf(dev_port, rte_lcore_id(), mbuf, false);
+
+    // Cleanup
+    printf("Freeing mbuf\n");
+    rte_pktmbuf_free(mbuf);
+}
+
+#endif // LLVM_FUZZER
+

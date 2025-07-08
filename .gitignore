@@ -6,6 +6,7 @@ third_party/libprotobuf-mutator/
 
 # fuzzer output
 output-fuzz/
+output-fuzz*
 
 # fuzzer input
 input-seeds/
@@ -16,4 +17,9 @@ build/
 # cache and vscode
 .cache/
 .vscode/
+
+# coverage report
+cov_report/
+cov_report*
+cov_*
 

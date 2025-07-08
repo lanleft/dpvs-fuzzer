@@ -18,14 +18,8 @@ tcp = TCP(
 tcp.dataofs = 15  # (tcph->doff << 2) - 20
 tcp.options = [('MSS', 1460)]
 
-# Prevent automatic recalculation
-tcp.auto_checksum = False
-
-# Optional: manually set checksum too
-tcp.chksum = 18700  # = 18700 in decimal
-
 # Append payload → so pkt_len > header length
-payload = Raw(b"A" * 40)  # 40 bytes of extra data
+payload = Raw(b"A" * 40)  # 40 bytes of extra data # 84
 
 packet = ip / tcp /payload
 

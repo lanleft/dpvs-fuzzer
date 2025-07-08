@@ -2,24 +2,352 @@ syntax = "proto2";
 
 package dpvs;
 
-message MbufMutator {
-    // Basic mbuf fields
-    optional uint32 pkt_len = 1;
-    optional uint32 data_len = 2;
-    optional uint32 port = 3; // proto2 doesn't support optional uint16
-    optional uint32 nb_segs = 4; // proto2 doesn't support optional uint16
-    optional uint32 ol_flags = 5;
-    
-    // Ethernet header
-    optional bytes eth_header = 6;
-    
-    // Optional VLAN tag
-    optional uint32 vlan_tci = 7; // proto2 doesn't support optional uint16
-    
-    // Protocol headers
-    optional bytes ip_header = 8;
-    optional bytes transport_header = 9;
-    
-    // Payload
-    optional bytes payload = 10;
-} 
+enum IpVersion {
+  IPV4 = 4;
+  IPV6 = 6;
+}
+
+
+enum Protocol {
+  IPPROTO_IP = 0;
+  IPPROTO_ICMP = 1;
+  IPPROTO_IGMP = 2;
+  IPPROTO_IPIP = 4;
+  IPPROTO_TCP = 6;
+  IPPROTO_UDP = 17;
+  //   so on..
+}
+
+// These can be used as-is for 32-bit ints.
+// testing address
+enum SrcAddr {
+  IN4_SRC_ADDR_0 = 0;
+  IN4_SRC_ADDR_BROADCAST = -1;
+}
+
+enum DstAddr {
+  IN4_DST_ADDR_0 = 0;
+  IN4_DST_ADDR_BROADCAST = -1;
+}
+
+enum Port {
+  PORT_8000 = 8000;
+}
+
+enum TcpSeq {
+  SEQ_1 = 1;
+  SEQ_2 = 2;
+  SEQ_3 = 3;
+  SEQ_4 = 4;
+  SEQ_5 = 5;
+  SEQ_6 = 6;
+  SEQ_7 = 7;
+  SEQ_8 = 8;
+}
+
+enum TcpFlag {
+  MY_TH_FIN = 1;
+  MY_TH_SYN = 2;
+  MY_TH_RST = 4;
+  MY_TH_PUSH = 8;
+  MY_TH_ACK = 16;
+  MY_TH_URG = 32;
+  MY_TH_ECE = 64;
+  MY_TH_CWR = 128;
+}
+
+// TODO: add more ipv6 routing header types
+enum Ip6RtType {
+  MY_IPV6_RTHDR_TYPE_0 = 0;
+}
+
+
+
+// /* Ethernet frame types */
+// #define RTE_ETHER_TYPE_IPV4 0x0800 /**< IPv4 Protocol. */
+// #define RTE_ETHER_TYPE_IPV6 0x86DD /**< IPv6 Protocol. */
+// #define RTE_ETHER_TYPE_ARP  0x0806 /**< Arp Protocol. */
+// #define RTE_ETHER_TYPE_RARP 0x8035 /**< Reverse Arp Protocol. */
+// #define RTE_ETHER_TYPE_VLAN 0x8100 /**< IEEE 802.1Q VLAN tagging. */
+// #define RTE_ETHER_TYPE_QINQ 0x88A8 /**< IEEE 802.1ad QinQ tagging. */
+// #define RTE_ETHER_TYPE_QINQ1 0x9100 /**< Deprecated QinQ VLAN. */
+// #define RTE_ETHER_TYPE_QINQ2 0x9200 /**< Deprecated QinQ VLAN. */
+// #define RTE_ETHER_TYPE_QINQ3 0x9300 /**< Deprecated QinQ VLAN. */
+// #define RTE_ETHER_TYPE_PPPOE_DISCOVERY 0x8863 /**< PPPoE Discovery Stage. */
+// #define RTE_ETHER_TYPE_PPPOE_SESSION 0x8864 /**< PPPoE Session Stage. */
+// #define RTE_ETHER_TYPE_ETAG 0x893F /**< IEEE 802.1BR E-Tag. */
+// #define RTE_ETHER_TYPE_1588 0x88F7
+// 	/**< IEEE 802.1AS 1588 Precise Time Protocol. */
+// #define RTE_ETHER_TYPE_SLOW 0x8809 /**< Slow protocols (LACP and Marker). */
+// #define RTE_ETHER_TYPE_TEB  0x6558 /**< Transparent Ethernet Bridging. */
+// #define RTE_ETHER_TYPE_LLDP 0x88CC /**< LLDP Protocol. */
+// #define RTE_ETHER_TYPE_MPLS 0x8847 /**< MPLS ethertype. */
+// #define RTE_ETHER_TYPE_MPLSM 0x8848 /**< MPLS multicast ethertype. */
+// #define RTE_ETHER_TYPE_ECPRI 0xAEFE /**< eCPRI ethertype (.1Q supported). */
+
+enum EthType {
+  ETH_TYPE_IPV4 = 0x0800;
+  ETH_TYPE_IPV6 = 0x86dd;
+  ETH_TYPE_ARP = 0x0806;
+  ETH_TYPE_VLAN = 0x8100;
+  // TODO: add more eth types
+}
+
+enum EthPktType {
+  MY_ETH_PKT_HOST = 0;
+  MY_ETH_PKT_BROADCAST = 1;
+  MY_ETH_PKT_MULTICAST = 2;
+  MY_ETH_PKT_OTHERHOST = 3;
+}
+
+enum PortType {
+  PORT_TYPE_GENERAL = 0;
+  PORT_TYPE_BOND_MASTER = 1;
+  PORT_TYPE_BOND_SLAVE = 2;
+  PORT_TYPE_VLAN = 3;
+  PORT_TYPE_TUNNEL = 4;
+  PORT_TYPE_INVAL = 5;
+}
+
+enum EthAddr {
+  ETH_ADDR_0 = 0;
+  ETH_ADDR_1 = 1;
+}
+
+message EthHdr {
+    required EthAddr eth_dst = 1;
+    required EthAddr eth_src = 2;
+    required EthType eth_type = 3;
+}
+
+message TcpHdr {
+    required uint32 th_sport = 1;
+    required Port th_dport = 2;
+    required TcpSeq th_seq = 3;
+    required TcpSeq th_ack = 4;
+    required uint32 th_off = 5;
+    repeated TcpFlag th_flags = 6;
+    required uint32 th_win = 7;
+    required uint32 th_sum = 8; // TODO: compute valid checksum
+    required uint32 th_urp = 9;
+    // TODO: more extension fields
+}
+
+// ============================== IPv6 ==============================
+
+enum Icmp6Type {
+  MY_ICMP6_DST_UNREACH = 1; // dest unreachable, codes:
+  MY_ICMP6_PACKET_TOO_BIG = 2; // packet too big
+  MY_ICMP6_TIME_EXCEEDED = 3; // time exceeded, code:
+  MY_ICMP6_PARAM_PROB = 4; // ip6 header bad
+  MY_ICMP6_ECHO_REQUEST = 128; // echo service
+  MY_ICMP6_ECHO_REPLY = 129; // echo reply
+  MY_MLD_LISTENER_QUERY = 130; // multicast listener query
+  MY_MLD_LISTENER_REPORT = 131; // multicast listener report
+  MY_MLD_LISTENER_DONE = 132; // multicast listener done
+  MY_ND_ROUTER_SOLICIT = 133; // router solicitation
+  MY_ND_ROUTER_ADVERT = 134; // router advertisement
+  MY_ND_NEIGHBOR_SOLICIT = 135; // neighbor solicitation
+  MY_ND_NEIGHBOR_ADVERT = 136; // neighbor advertisement
+  MY_ND_REDIRECT = 137; // redirect
+  MY_ICMP6_ROUTER_RENUMBERING = 138; // router renumbering
+  MY_ICMP6_WRUREQUEST = 139; // who are you request
+  MY_ICMP6_WRUREPLY = 140; // who are you reply
+  MY_MLDV2_LISTENER_REPORT = 143; // RFC3810 listener report
+  MY_MLD_MTRACE_RESP = 200; // mtrace resp (to sender)
+  MY_MLD_MTRACE = 201; // mtrace messages
+}
+
+enum Icmp6Code {
+  MY_ICMP6_DST_UNREACH_NOROUTE = 0; // no route to destination
+  MY_ICMP6_DST_UNREACH_ADMIN = 1; // administratively prohibited
+  MY_ICMP6_DST_UNREACH_NOTNEIGHBOR = 2; // not a neighbor(obsolete)
+  MY_ICMP6_DST_UNREACH_ADDR = 3; // address unreachable
+  MY_ICMP6_DST_UNREACH_NOPORT = 4; // port unreachable
+  MY_ICMP6_INFOMSG_MASK = 128; // all informational messages
+  MY_ICMP6_ROUTER_RENUMBERING_SEQNUM_RESET = 255; // rr seq num reset
+}
+
+enum PacketType {
+  PACKET_TYPE_TCP = 1;
+  PACKET_TYPE_TCP6 = 2;
+  PACKET_TYPE_IP4 = 3;
+  PACKET_TYPE_IP6 = 4;
+}
+
+
+enum In6Addr {
+  IN6_ADDR_ANY = 0;
+  IN6_ADDR_LOOPBACK = 1;
+  IN6_ADDR_REAL = 2;
+  IN6_ADDR_SELF = 3;
+  IN6_ADDR_LINK_LOCAL = 4;
+  IN6_ADDR_UNSPECIFIED = 5;
+  IN6_ADDR_V4COMPAT = 7;
+  IN6_ADDR_V4MAPPED = 8;
+  IN6_ADDR_6TO4 = 9;
+  IN6_ADDR_LINKLOCAL = 10;
+  IN6_ADDR_SITELOCAL = 11;
+  IN6_ADDR_MULTICAST = 12;
+  IN6_ADDR_UNIQUE_LOCAL = 13;
+  IN6_ADDR_MC_NODELOCAL = 14;
+  IN6_ADDR_MC_INTFACELOCAL = 15;
+  IN6_ADDR_MC_LINKLOCAL = 16;
+  IN6_ADDR_MC_SITELOCAL = 17;
+  IN6_ADDR_MC_ORGLOCAL = 18;
+  IN6_ADDR_MC_GLOBAL = 19;
+  IN6_ADDR_LOCAL_ADDRESS = 20;
+  MAYBE_LOCALHOST = 16777216;
+}
+
+enum Ip6Vrs {
+  IPV6_VERSION = 6;
+}
+
+message Ip6Hdr {
+  required uint32 flow_id = 1;
+  required uint32 tclass = 2;
+  required Ip6Vrs version = 3;
+  required uint32 payload_len = 4;
+  required Protocol proto = 5;
+  required uint32 hop_limit = 6;
+  required In6Addr src_addr = 7;
+  required In6Addr dst_addr = 8;
+}
+
+
+message Ip6Ext {
+  required Protocol ip6e_nxt = 1;
+  required uint32 ip6e_len = 2;
+}
+
+message Ip6RtHdr {
+  required Protocol ip6r_nxt = 1;
+  required uint32 ip6r_len = 2;
+  required Ip6RtType ip6r_type = 3;
+  required uint32 ip6r_segleft = 4;
+}
+
+message Ip6Rt0Hdr {
+  required Protocol ip6r0_nxt = 1;
+  required uint32 ip6r0_len = 2;
+  required uint32 ip6r0_type = 3;
+  required uint32 ip6r0_segleft = 4;
+  required uint32 ip6r0_reserved = 5;
+  required uint32 ip6r0_slmap = 6;
+  repeated In6Addr ip6r0_addr = 7;
+}
+
+message Ip6FragHdr {
+  required Protocol ip6f_nxt = 1;
+  required uint32 ip6f_reserved = 2;
+  required uint32 ip6f_offlg = 3;
+  required uint32 ip6f_ident = 4;
+}
+
+message Icmp6Hdr {
+  optional Icmp6Type icmp6_type = 1;
+  optional Icmp6Code icmp6_code = 2;
+  // optional uint32 icmp6_cksum = 3;
+  optional uint32 icmp6_dataun = 4;
+}
+
+// ============================== IPv4 ==============================
+
+enum Ipv4Vrs {
+  IPV4_VERSION = 4;
+}
+
+// TODO: ip options
+message Ip4Hdr {
+  required uint32 ip_hl = 1;
+  required Ipv4Vrs ip_vrs = 2;
+  required uint32 ip_tos = 3;
+  required uint32 ip_len = 4;
+  required uint32 ip_id = 5;
+  required uint32 ip_off = 6;
+  required uint32 ip_ttl = 7;
+  required Protocol ip_p = 8;
+  required SrcAddr ip_src = 9;
+  required DstAddr ip_dst = 10;
+}
+
+
+message TcpPacket {
+  required Ip4Hdr ip4_hdr = 1;
+  required TcpHdr tcp_hdr = 2;
+  optional bytes data = 3;
+}
+
+
+message Tcp6Packet {
+  required Ip6Hdr ip6_hdr = 1;
+  required TcpHdr tcp_hdr = 2;
+  optional bytes data = 3;
+}
+
+message Ip4Packet {
+  required Ip4Hdr ip4_hdr = 1;
+  optional bytes data = 2;
+}
+
+message Ip6Packet {
+  required Ip6Hdr ip6_hdr = 1;
+  optional bytes data = 2;
+}
+
+enum IcmpType {
+  MY_ICMP_TYPE_ECHO_REPLY = 0;
+  MY_ICMP_TYPE_DEST_UNREACHABLE = 3;
+  MY_ICMP_TYPE_REDIRECT = 5;
+  MY_ICMP_TYPE_ECHO_REQUEST = 8;
+  MY_ICMP_TYPE_TTL_EXCEEDED = 11;
+  MY_ICMP_TYPE_PARAM_PROBLEM = 12;
+  MY_ICMP_TYPE_TIMESTAMP_REQUEST = 13;
+  MY_ICMP_TYPE_TIMESTAMP_REPLY = 14;
+  
+}
+
+enum IcmpCode {
+  // // Destination Unreachable codes
+  // MY_ICMP_CODE_UNREACH_NET = 0;
+  // MY_ICMP_CODE_UNREACH_HOST = 1;
+  // MY_ICMP_CODE_UNREACH_PROTO = 2;
+  // MY_ICMP_CODE_UNREACH_PORT = 3;
+  // MY_ICMP_CODE_UNREACH_FRAG = 4;
+  // MY_ICMP_CODE_UNREACH_SRC = 5;
+
+  // // Time Exceeded codes
+  // MY_ICMP_CODE_TTL_EXCEEDED = 0;
+  // MY_ICMP_CODE_TTL_FRAG = 1;
+
+  // Redirect codes
+  MY_ICMP_CODE_REDIRECT_NET = 0;
+  MY_ICMP_CODE_REDIRECT_HOST = 1;
+  MY_ICMP_CODE_REDIRECT_TOS_NET = 2;
+  MY_ICMP_CODE_REDIRECT_TOS_HOST = 3;
+}
+message IcmpHdr {
+  required IcmpType icmp_type = 1;
+  required IcmpCode icmp_code = 2;
+  required uint32 icmp_id = 3;
+  required uint32 icmp_seq = 4;
+}
+
+message IcmpPacket {
+  required Ip4Hdr ip4_hdr = 1;
+  required IcmpHdr icmp_hdr = 2;
+  optional bytes data = 3;
+}
+
+message Mbuf {
+  oneof mbuf {
+    TcpPacket tcp_packet = 1;
+    Tcp6Packet tcp6_packet = 2;
+    Ip4Packet ip4_packet = 3;
+    Ip6Packet ip6_packet = 4;
+    IcmpPacket icmp_packet = 5;
+    // TODO: more packet types
+  }
+}
+

@@ -107,15 +107,35 @@ set(DPDK_INCLUDE
 
 # =================== AFL++ FLAGS ==================
 
+# DATE_STRING := $(shell date +%Y.%m.%d.%H:%M:%S)
+set(DATE_STRING "2025.05.15.17:00:00")
+
 # AFL++ flags , debug mode
 set(AFL_CXX_FLAGS
     -fsanitize=fuzzer,address
     -O1
     -g
+    -DDPVS_BUILD_DATE="${DATE_STRING}"
+)
+
+# AFL++ flags , debug mode
+set(AFL_CXX_FLAGS_NON_FUZZ
+    -fsanitize=address
+    -O1
+    -g
+    -DDPVS_BUILD_DATE="${DATE_STRING}"
 )
 # debug mode
 set(AFL_LD_FLAGS
     -fsanitize=fuzzer,address
+    -g
+    -O1
+    -lnuma
+    -lz 
+)
+
+set(AFL_LD_FLAGS_NON_FUZZ
+    -fsanitize=address
     -g
     -O1
     -lnuma
@@ -135,6 +155,8 @@ set(DPVS_DEFINES
 
 set(DPVS_INCLUDE
   third_party/dpvs/include/
+  third_party/dpvs/tools/keepalived/keepalived/include/
+  third_party/dpvs/tools/
 )
 
 set(DPVS_HEADERS
@@ -144,21 +166,6 @@ set(DPVS_HEADERS
   third_party/dpvs/src/ipvs/libconhash/conhash.h
   third_party/dpvs/src/ipvs/libconhash/configure.h
   third_party/dpvs/src/ipvs/libconhash/md5.h
-)
-
-set(DPVS_FAKES_SOURCES
-  fuzz/fakes/eal/rte_random.c
-  fuzz/fakes/eal/rte_interrupts.c
-  fuzz/fakes/eal/rte_lcore.c
-  fuzz/fakes/eal/rte_service.c
-  fuzz/fakes/eal/rte_memory.c
-  fuzz/fakes/eal/rte_bus.c
-  fuzz/fakes/eal/rte_memzone.c
-  fuzz/fakes/eal/rte_thread.c
-  fuzz/fakes/eal/rte_devargs.c
-  fuzz/fakes/eal/rte_alarm.c
-  fuzz/fakes/eal/rte_power_intrinsics.c
-  fuzz/fakes/eal/rte_malloc.c
 )
 
 set(DPVS_SOURCES
@@ -264,6 +271,10 @@ set(DPVS_SOURCES
   third_party/dpvs/src/ipv4_frag.c
   third_party/dpvs/src/timer.c
   third_party/dpvs/src/pidfile.c
+  third_party/dpvs/tools/keepalived/keepalived/check/sockopt.c
+  third_party/dpvs/tools/dpip/utils.c
+  third_party/dpvs/tools/dpip/dpip.c
+  third_party/dpvs/tools/dpip/route.c
 )
 
 
@@ -321,7 +332,8 @@ target_compile_options(dpvs-fuzzer PRIVATE ${AFL_CXX_FLAGS} ${DPVS_DEFINES} ${DP
 )
 
 target_link_libraries(dpvs-fuzzer ${AFL_LD_FLAGS}
-            protobuf-mutator
+            -lprotobuf-mutator 
+            -lprotobuf-mutator-libfuzzer
             ${Protobuf_LIBRARIES}
             ${DPDK_LIBS}
             ${DPDK_COMPONENTS}
@@ -331,8 +343,89 @@ target_link_libraries(dpvs-fuzzer ${AFL_LD_FLAGS}
             -lcrypto
             -lmlx4
             -lelf
-            )
+)
+
+# ==================== BUILDING BATCH TEST ====================
+add_executable(
+  dpvs-fuzzer-batch fuzz/dpvs-fuzzer.cc ${MBUF_PROTO_SRCS} ${MBUF_PROTO_HDRS} ${DPVS_SOURCES}
+)
+
+target_include_directories(dpvs-fuzzer-batch PRIVATE 
+  third_party/libprotobuf-mutator
+  ${DPVS_INCLUDE}
+  ${DPDK_INCLUDE}
+  fuzz/fakes)
+
+target_compile_options(dpvs-fuzzer-batch PRIVATE ${AFL_CXX_FLAGS_NON_FUZZ} ${DPVS_DEFINES} ${DPDK_LIBS}
+  -mssse3
+  -ferror-limit=3
+  -Wall -Wstrict-prototypes -Wmissing-prototypes -mcmodel=medium
+  -mcrc32
+  -DLLVM_FUZZER=1
+  -D__DPVS__
+  -DDPVS_VERSION="1.10"
+  -DLLVM_BATCH_TEST=1
+)
+
+target_link_libraries(dpvs-fuzzer-batch ${AFL_LD_FLAGS_NON_FUZZ}
+  -lprotobuf-mutator  
+  -lprotobuf-mutator-libfuzzer  
+  ${Protobuf_LIBRARIES}
+  ${DPDK_LIBS}
+  ${DPDK_COMPONENTS}
+  -lz
+  -lmlx5
+  -libverbs
+  -lcrypto
+  -lmlx4
+  -lelf
+)
+# ==================== BUILDING COVERAGE REPORT ====================
+# Build coverage report
+add_executable(
+  dpvs-fuzzer-cov fuzz/dpvs-fuzzer.cc ${MBUF_PROTO_SRCS} ${MBUF_PROTO_HDRS} ${DPVS_SOURCES}
+)
+
+target_include_directories(dpvs-fuzzer-cov PRIVATE 
+  third_party/libprotobuf-mutator
+  ${DPVS_INCLUDE}
+  ${DPDK_INCLUDE}
+  fuzz/fakes)
+
+# Add clang coverage flags
+target_compile_options(dpvs-fuzzer-cov PRIVATE ${AFL_CXX_FLAGS} ${DPVS_DEFINES} ${DPDK_LIBS}
+  -mssse3
+  -ferror-limit=3
+  -Wall -Wstrict-prototypes -Wmissing-prototypes -mcmodel=medium
+  -mcrc32
+  -DLLVM_FUZZER=1
+  -D__DPVS__
+  -DDPVS_VERSION="1.10"
+  -fprofile-instr-generate
+  -fcoverage-mapping
+)
+
+target_link_libraries(dpvs-fuzzer-cov ${AFL_LD_FLAGS}
+  -lprotobuf-mutator  
+  -lprotobuf-mutator-libfuzzer  
+  ${Protobuf_LIBRARIES}
+  ${DPDK_LIBS}
+  ${DPDK_COMPONENTS}
+  -lz
+  -lmlx5
+  -libverbs
+  -lcrypto
+  -lmlx4
+  -lelf
+  -fprofile-instr-generate
+  -fcoverage-mapping
+)
+
+# # Add coverage report target
+# add_custom_command(
+#   TARGET dpvs-fuzzer-cov POST_BUILD
+#   COMMAND ${CMAKE_OBJCOPY} --only-keep-debug ${CMAKE_BINARY_DIR}/dpvs-fuzzer-cov ${CMAKE_BINARY_DIR}/dpvs-fuzzer-cov.dbg
+#   COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${CMAKE_BINARY_DIR}/dpvs-fuzzer-cov.dbg ${CMAKE_BINARY_DIR}/dpvs-fuzzer-cov
+# )
 
 
-
-# Add cov target later

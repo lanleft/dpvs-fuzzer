@@ -1,0 +1,25 @@
+tcp_packet {
+  ip4_hdr {
+    ip_hl: 5
+    ip_vrs: IPV4_VERSION
+    ip_tos: 0
+    ip_len: 40
+    ip_id: 1234
+    ip_off: 0
+    ip_ttl: 64
+    ip_p: IPPROTO_TCP
+    ip_src: IN4_SRC_ADDR_0
+    ip_dst: IN4_DST_ADDR_0
+  }
+  tcp_hdr {
+    th_sport: 12345
+    th_dport: PORT_8000
+    th_seq: SEQ_1
+    th_ack: SEQ_2
+    th_off: 32
+    th_flags: MY_TH_FIN
+    th_win: 65535
+    th_sum: 64
+    th_urp: 0
+  }
+}
