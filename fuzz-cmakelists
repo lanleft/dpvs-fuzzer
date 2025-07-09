@@ -17,11 +17,11 @@ set(FUZZING_FLAGS_BINARY "-fsanitize=fuzzer,address")
 add_definitions(-DDPVS_MAX_LCORE=4 -DDPVS_MAX_SOCKET=2)
 
 # DPDK paths
-set(DPDK_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpdk-24.11")
+set(DPDK_PATH "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/dpdk-24.11")
 set(DPDK_LIB_PATH "${DPDK_PATH}/dpdklib")
 set(DPDK_BUILD_PATH "${DPDK_PATH}/dpdkbuild")
-set(DPVS_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpvs")
-set(PROTOBUF_MUTATOR_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/libprotobuf-mutator/")
+set(DPVS_PATH "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/dpvs")
+set(PROTOBUF_MUTATOR_PATH "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/libprotobuf-mutator/")
 
 # DPDK compiler flags
 set(DPDK_CFLAGS "-include rte_config.h -march=native -mrtm -I${DPDK_LIB_PATH}/include")

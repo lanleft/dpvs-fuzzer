@@ -11,13 +11,13 @@ buildfuzz:
 runafl:
 	output_dir=${od}; \
 	input_dir=${id}; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 AFL_SKIP_CPUFREQ=1 AFL_QEMU_PERSISTENT_GPR=1 AFL_PERSISTENT_RECORD=10 __AFL_PERSISTENT=1 AFL_AUTORESUME=1 third_party/AFLplusplus/afl-fuzz -i $$input_dir  -o $$output_dir -- ./build/dpvs-fuzzer @@
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 AFL_SKIP_CPUFREQ=1 AFL_QEMU_PERSISTENT_GPR=1 AFL_PERSISTENT_RECORD=10 __AFL_PERSISTENT=1 AFL_AUTORESUME=1 third_party/AFLplusplus/afl-fuzz -i $$input_dir  -o $$output_dir -- ./build/dpvs-fuzzer @@
 
 dbgafl:
 	output_dir=${od}; \
 	input_dir=${id}; \
 	rm -rf $$output_dir; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 AFL_SKIP_CPUFREQ=1 AFL_QEMU_PERSISTENT_GPR=1 AFL_PERSISTENT_RECORD=10 __AFL_PERSISTENT=1 AFL_LLVM_LAF_ALL=1 AFL_DEBUG=1 third_party/AFLplusplus/afl-fuzz -i $$input_dir  -o $$output_dir -- ./build/dpvs-fuzzer @@
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 AFL_SKIP_CPUFREQ=1 AFL_QEMU_PERSISTENT_GPR=1 AFL_PERSISTENT_RECORD=10 __AFL_PERSISTENT=1 AFL_LLVM_LAF_ALL=1 AFL_DEBUG=1 third_party/AFLplusplus/afl-fuzz -i $$input_dir  -o $$output_dir -- ./build/dpvs-fuzzer @@
 
 testone:
 	@echo "Looking for test case with id=${id}"; \
@@ -29,7 +29,7 @@ testone:
 	fi; \
 	echo "Running test case: $$fn"; \
 	cat "output-fuzz/default/crashes/$$fn"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	./build/dpvs-fuzzer "output-fuzz/default/crashes/$$fn"
 
@@ -44,7 +44,7 @@ testrd:
 	fi; \
 	echo "Running test case: $$fn"; \
 	cat "$(folder)/default/queue/$$fn"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	./build/dpvs-fuzzer "$(folder)/default/queue/$$fn"
 	
@@ -55,18 +55,18 @@ testN:
 	fn=$$(ls $(folder)/default/queue/ | head -n$$N); \
 	for file in $$fn; do \
 		echo "Running test case: $(folder)/default/queue/$$file"; \
-		LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+		LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 		ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 		./build/dpvs-fuzzer "$(folder)/default/queue/$$file"; \
 	done
 
 testseed:
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	./build/dpvs-fuzzer input-seeds/seed0
 
 testip:
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	./build/dpvs-fuzzer ${ip}
 
@@ -80,7 +80,7 @@ batchtest:
 		exit 1; \
 	fi; \
 	echo "Running batch of test cases"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	FUZZ_BATCH_TEST=output-fuzz/lists.txt \
 	./build/dpvs-fuzzer-batch
@@ -95,7 +95,7 @@ batchgdb:
 		exit 1; \
 	fi; \
 	echo "Running batch of test cases"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	FUZZ_BATCH_TEST=output-fuzz/lists.txt \
 	LC_CTYPE=C.UTF-8 gdb ./build/dpvs-fuzzer-batch
@@ -110,7 +110,7 @@ gdbtest:
 		exit 1; \
 	fi; \
 	echo "Running GDB with test case: $$fn"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	LC_CTYPE=C.UTF-8 \
 	gdb --args ./build/dpvs-fuzzer "output-fuzz/default/crashes/$$fn"
@@ -126,14 +126,14 @@ gdbrd:
 	fi; \
 	echo "Running test case: $$fn"; \
 	cat "$(folder)/default/queue/$$fn"; \
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	LC_CTYPE=C.UTF-8 \
 	gdb --args ./build/dpvs-fuzzer "$(folder)/default/queue/$$fn"
 
 gdbip:
 	# gdb test case with input filename ${ip}
-	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+	LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 	ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 	LC_CTYPE=C.UTF-8 \
 	gdb --args ./build/dpvs-fuzzer ${ip}
@@ -168,7 +168,7 @@ endif
 			echo "[$$i/$$total] Running coverage for $$file"; \
 			basefile=$$(basename $$file); \
 			sudo LLVM_PROFILE_FILE="dpvs-fuzzer-$$basefile.profraw" \
-			LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
+			LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu \
 			ASAN_OPTIONS=detect_leaks=0,abort_on_error=1,symbolize=0 \
 			../build/dpvs-fuzzer-cov "$$file"; \
 			i=$$((i+1)); \
@@ -185,8 +185,8 @@ endif
 		-format=html \
 		-output-dir=$(cov_report)/html \
 		-instr-profile=$(cov_report)/coverage.profdata \
-		-object /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/build/dpvs-fuzzer-cov \
-		-compilation-dir=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/build/CMakeFiles/dpvs-fuzzer-cov.dir/
+		-object /home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/build/dpvs-fuzzer-cov \
+		-compilation-dir=/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/build/CMakeFiles/dpvs-fuzzer-cov.dir/
 		
 
 catfiles:

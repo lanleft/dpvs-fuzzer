@@ -1,8 +1,5 @@
 # third party libraries
-third_party/AFLplusplus/
 third_party/dpdk-24.11/
-third_party/libprotobuf-mutator/build/
-third_party/libprotobuf-mutator/
 
 # fuzzer output
 output-fuzz/

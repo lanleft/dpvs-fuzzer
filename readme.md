@@ -14,7 +14,17 @@
 <!-- tocstop -->
 
 ## Overview 
+<!-- the purpose of this project -->
 
+### Set up Debugging Environment
+
+- To install dpvs, we come up with several ideas. In the end, there's one solution work out. 
+- Basically, we create 2 qemu machine. The first one is for setting dpvs with dpdk instrumentation, that requires huge storeage, ram and cores. The second machine is quite simple, cause its purpose is just testing connection. 
+- More details and step by step guideline [here](vm-setup/readme.md)
+
+## Fuzzer Dependencies
+
+### Project Structure
 - Fuzzer main modules structure:
 
 ```bash
@@ -26,9 +36,9 @@
     dpvs/
 ```
 
-## Building dependencies
+### Building Dependencies
 
-### liborotobuf-mutator
+#### liborotobuf-mutator
 
 - https://github.com/google/libprotobuf-mutator?tab=readme-ov-file
 
@@ -45,19 +55,25 @@ cmake .. -GNinja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_B
 ninja check
 ```
 
-## Building a Fuzzer
+### Building Fuzzer
 
 ```bash
-mkdir build 
-cd build
-cmake -GNinja .. && ninja
+# 
+make buildfuzz
 ```
 
 - Running `dpvs-fuzzer` in the first step:
 
+### Testing Command
+
 ```bash
-
-export LD_LIBRARY_PATH=/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib/lib/x86_64-linux-gnu
-
-./dpvs-fuzzer
+# or using make command
+sudo make runafl od=output-fuzz id=scripts/seed/binary-seeds
 ```
+
+## References
+
+- https://chromium.googlesource.com/chromium/src/+/main/testing/libfuzzer/libprotobuf-mutator.md
+- https://github.com/github/securitylab/tree/main/SecurityExploits/apple/darwin-xnu/icmp_error_CVE-2018-4407
+- https://github.com/iqiyi/dpvs/commit/e9fdedfa40a0a624e8c67ab4625dcc097b3896c9
+- https://github.com/googleprojectzero/SockFuzzer

@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.13)
 project(dpvs-fuzzer)
 
 # Set AFL++ compiler
-set(CMAKE_CXX_COMPILER "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/AFLplusplus/afl-clang-fast++")
-set(CMAKE_C_COMPILER "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/AFLplusplus/afl-clang-fast")
+set(CMAKE_CXX_COMPILER "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/AFLplusplus/afl-clang-fast++")
+set(CMAKE_C_COMPILER "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/AFLplusplus/afl-clang-fast")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(DPDK_LIB_PATH "/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib")
+set(DPDK_LIB_PATH "/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/third_party/dpdk-24.11/dpdklib")
 
 # Force coloful output
 add_compile_options(-fcolor-diagnostics)

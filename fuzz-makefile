@@ -1,5 +1,5 @@
-CC = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/AFLplusplus/afl-clang-fast
-CXX = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/AFLplusplus/afl-clang-fast++
+CC = /home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/AFLplusplus/afl-clang-fast
+CXX = /home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/AFLplusplus/afl-clang-fast++
 
 CFLAGS = -g -O1 -fsanitize=fuzzer,address -fno-omit-frame-pointer -std=c99 -Wall -Wextra -Werror
 CXXFLAGS = -g -O1 -fsanitize=fuzzer,address -fno-omit-frame-pointer -std=c++11 -Wall -Wextra -Werror,-Wsign-compare
@@ -10,7 +10,7 @@ DEFS += -DDPVS_MAX_SOCKET=2
 
 
 # DPDK paths
-DPDK_PATH = /home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/dpdk-24.11
+DPDK_PATH = /home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/dpdk-24.11
 DPDK_LIB_PATH = $(DPDK_PATH)/dpdklib
 DPDK_BUILD_PATH = $(DPDK_PATH)/dpdkbuild
 DPVS_PATH = ../dpvs

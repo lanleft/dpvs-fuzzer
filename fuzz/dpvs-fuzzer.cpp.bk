@@ -210,10 +210,10 @@ static int init_dpdk(void) {
         dpvs_ipc_file="/var/run/dpvs.ipc";
 
     if (!dpvs_conf_file)
-        dpvs_conf_file="/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/fuzz/dpvs.conf";
+        dpvs_conf_file="/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/fuzz/dpvs.conf";
 
     if (!dpvs_pid_file)
-        dpvs_pid_file="/home/lab/Desktop/side-projects/linux-setup/dpvs-fuzzer/fuzz/dpvs.pid";
+        dpvs_pid_file="/home/lab/Desktop/side-projects/dpvs-project/dpvs-fuzzer/fuzz/dpvs.pid";
 
     // 
     dpvs_state_set(DPVS_STATE_INIT);

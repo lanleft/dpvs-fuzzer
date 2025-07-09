@@ -5,7 +5,7 @@
 # 	-smp 4 \
 # 	-kernel linux/arch/x86/boot/bzImage \
 # 	-append "console=ttyS0 root=/dev/sda earlyprintk=serial net.ifnames=0" \
-# 	-drive file=/home/lab/Desktop/side-projects/linux-setup/image/bullseye.img,format=raw \
+# 	-drive file=/home/lab/Desktop/side-projects/dpvs-project/image/bullseye.img,format=raw \
 # 	-net user,host=10.0.2.10,hostfwd=tcp:127.0.0.1:10021-:2222 \
 # 	-net nic,model=e1000 \
 # 	-enable-kvm \
@@ -19,7 +19,7 @@ sudo qemu-system-x86_64 \
         -smp 4 \
         -kernel ./bzImage2 \
         -append "console=ttyS0 root=/dev/sda earlyprintk=serial net.ifnames=0 nokaslr" \
-        -drive file=/home/lab/Desktop/side-projects/linux-setup/rs-qemu/rs-bullseye.img,format=raw \
+        -drive file=/home/lab/Desktop/side-projects/dpvs-project/rs-qemu/rs-bullseye.img,format=raw \
         -netdev tap,id=net0,ifname=tap1,script=no,downscript=no \
         -device e1000,netdev=net0,mac=52:54:00:12:34:57 \
         -cpu Nehalem \
