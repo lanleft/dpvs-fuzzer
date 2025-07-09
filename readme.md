@@ -72,6 +72,10 @@ make buildfuzz
 sudo make runafl od=output-fuzz id=scripts/seed/binary-seeds
 ```
 
+## Fuzzing Progress
+
+- what I have done and my testing ideas, which part can improve in the future, etc. everything was decribled at [this summary](fuzzing-progress.md)
+
 ## References
 
 - https://chromium.googlesource.com/chromium/src/+/main/testing/libfuzzer/libprotobuf-mutator.md
