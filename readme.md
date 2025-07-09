@@ -6,17 +6,18 @@
 
 <!-- toc -->
 
-- [Overview](#overview)
-- [Building dependencies](#building-dependencies)
-  * [liborotobuf-mutator](#liborotobuf-mutator)
-- [Building a Fuzzer](#building-a-fuzzer)
+- [Set up Debugging Environment](#set-up-debugging-environment)
+- [Fuzzer Dependencies](#fuzzer-dependencies)
+  * [Project Structure](#project-structure)
+  * [Building Dependencies](#building-dependencies)
+    + [liborotobuf-mutator](#liborotobuf-mutator)
+  * [Building Fuzzer](#building-fuzzer)
+  * [Testing Command](#testing-command)
+- [References](#references)
 
 <!-- tocstop -->
 
-## Overview 
-<!-- the purpose of this project -->
-
-### Set up Debugging Environment
+## Set up Debugging Environment
 
 - To install dpvs, we come up with several ideas. In the end, there's one solution work out. 
 - Basically, we create 2 qemu machine. The first one is for setting dpvs with dpdk instrumentation, that requires huge storeage, ram and cores. The second machine is quite simple, cause its purpose is just testing connection. 

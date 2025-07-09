@@ -1,0 +1,39 @@
+name: BUILD-LTS
+
+on:
+  push:
+    branches:
+      - 'DPVS-1.9-LTS'
+  release:
+    branches:
+      - 'DPVS-1.9-LTS'
+    types:
+      - published
+  pull_request:
+    branches:
+      - 'DPVS-1.9-LTS'
+    types:
+      - labeled
+
+jobs:
+  build-basic:
+    runs-on: self-hosted
+    env:
+      PKG_CONFIG_PATH: /data/dpdk/20.11.10/dpdklib/lib64/pkgconfig
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Build
+      run: make -j
+
+  build-all:
+    runs-on: self-hosted
+    env:
+      PKG_CONFIG_PATH: /data/dpdk/20.11.10/dpdklib/lib64/pkgconfig
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Config
+      run: sed -i 's/=n$/=y/' config.mk
+    - name: Build
+      run: make -j

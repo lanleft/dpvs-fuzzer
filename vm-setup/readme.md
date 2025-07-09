@@ -3,7 +3,20 @@
 Loading Balancer Network tool that Shopee is using as the proxy, handling networking traffic from external devices to internal servers
 
 ## Table of Contents
+
 <!-- toc -->
+
+- [Building Essential Stuffs](#building-essential-stuffs)
+  * [DPDK](#dpdk)
+  * [DPVS](#dpvs)
+  * [Full-NAT setting up tutorial](#full-nat-setting-up-tutorial)
+    + [On primary machine (that runs 2 vm)](#on-primary-machine-that-runs-2-vm)
+    + [On real server machine](#on-real-server-machine)
+    + [On dpvs vm](#on-dpvs-vm)
+    + [On real server](#on-real-server)
+- [References](#references)
+
+<!-- tocstop -->
 
 ## Building Essential Stuffs
 

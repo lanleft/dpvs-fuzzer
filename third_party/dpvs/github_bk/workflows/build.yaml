@@ -1,0 +1,44 @@
+name: BUILD
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'devel'
+  release:
+    branches:
+      - 'master'
+      - 'devel'
+    types:
+      - published
+  schedule:
+    - cron:  '30 2 * * 1'
+  pull_request:
+    branches:
+      - 'master'
+      - 'devel'
+    types:
+      - labeled
+
+jobs:
+  build-basic:
+    runs-on: self-hosted
+    env:
+      PKG_CONFIG_PATH: /data/dpdk/24.11/dpdklib/lib64/pkgconfig
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Build
+      run: make -j
+
+  build-all:
+    runs-on: self-hosted
+    env:
+      PKG_CONFIG_PATH: /data/dpdk/24.11/dpdklib/lib64/pkgconfig
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Config
+      run: sed -i 's/=n$/=y/' config.mk
+    - name: Build
+      run: make -j

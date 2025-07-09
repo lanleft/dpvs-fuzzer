@@ -1,0 +1,36 @@
+name: RUN
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'devel'
+  release:
+    branches:
+      - 'master'
+      - 'devel'
+    types:
+      - published
+  schedule:
+    - cron: '30 3 * * 1'
+  pull_request:
+    types:
+      - labeled
+    branches:
+      - 'master'
+      - 'devel'
+
+jobs:
+  run-dpvs:
+    runs-on: self-hosted
+    env:
+      PKG_CONFIG_PATH: /data/dpdk/24.11/dpdklib/lib64/pkgconfig
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Build
+      run: make -j
+    - name: Install
+      run: make install
+    - name: Run DPVS
+      run: sudo dpvsci $(pwd)/bin/dpvs
